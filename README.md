@@ -17,7 +17,7 @@ A micro-learning mobile app built with React Native Expo, demonstrating advanced
 ### Install & Run
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/parth-valia/aitv-lms
 cd aitv-lms
 npm install
 npx expo start
