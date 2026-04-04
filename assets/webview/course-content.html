@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AITV Course Content</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .dark { background-color: #0f172a; color: #f8fafc; }
+        .dark .card { background-color: #1e293b; border-color: #334155; }
+    </style>
+</head>
+<body class="bg-slate-50 transition-colors duration-300">
+    <div id="content" class="p-6 max-w-lg mx-auto">
+        <div class="animate-pulse">
+            <div class="h-4 bg-slate-200 rounded w-1/4 mb-4"></div>
+            <div class="h-8 bg-slate-200 rounded w-3/4 mb-6"></div>
+            <div class="h-32 bg-slate-200 rounded mb-8"></div>
+        </div>
+    </div>
+
+    <script>
+        const contentEl = document.getElementById('content');
+        
+        window.addEventListener('message', (event) => {
+            const message = JSON.parse(event.data);
+            
+            switch (message.type) {
+                case 'COURSE_DATA':
+                    renderCourse(message.payload);
+                    break;
+                case 'THEME':
+                    if (message.payload.isDark) {
+                        document.body.classList.add('dark');
+                    } else {
+                        document.body.classList.remove('dark');
+                    }
+                    break;
+            }
+        });
+
+        function renderCourse(course) {
+            contentEl.innerHTML = `
+                <div class="mb-4">
+                    <span class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded">COURSE CONTENT</span>
+                </div>
+                <h1 class="text-3xl font-extrabold text-slate-900 dark:text-white mb-6">${course.title}</h1>
+                
+                <div class="card bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 mb-8">
+                    <h2 class="text-lg font-bold mb-3 dark:text-slate-100">Module 1: Introduction</h2>
+                    <p class="text-slate-600 dark:text-slate-400 leading-relaxed mb-6">
+                        ${course.description}
+                    </p>
+                    
+                    <div class="flex items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-xl">
+                        <img src="${course.instructor.avatar}" class="w-10 h-10 rounded-full" />
+                        <div class="ml-3">
+                            <p class="text-sm font-bold dark:text-slate-200">${course.instructor.name}</p>
+                            <p class="text-xs text-slate-500">Expert Mentor</p>
+                        </div>
+                    </div>
+                </div>
+
+                <button 
+                    onclick="requestEnroll()"
+                    class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-transform"
+                >
+                    Request Special Enrollment
+                </button>
+            `;
+        }
+
+        function requestEnroll() {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'ENROLL_REQUEST',
+                payload: { courseId: window.courseId }
+            }));
+        }
+
+        // Notify native that we are ready
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'READY' }));
+    </script>
+</body>
+</html>
