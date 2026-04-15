@@ -5,7 +5,7 @@
     "scheme": "aitv-lms",
     "version": "1.0.0",
     "orientation": "default",
-    "icon": "./assets/icon.png",
+    "icon": "./src/assets/images/app-icons/icon_1.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -28,11 +28,12 @@
           "UIInterfaceOrientationLandscapeLeft",
           "UIInterfaceOrientationLandscapeRight"
         ]
-      }
+      },
+      "appleTeamId": "R5FK69QU84"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./src/assets/images/app-icons/icon_1.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -47,7 +48,41 @@
       "expo-secure-store",
       "expo-asset",
       "expo-font",
-      "expo-video"
-    ]
+      "expo-video",
+      [
+        "expo-quick-actions/icon/plugin",
+        {
+          "icon1": {
+            "image": "./src/assets/images/app-icons/icon_1.png"
+          },
+          "icon2": {
+            "image": "./src/assets/images/app-icons/icon_2.png"
+          },
+          "icon3": {
+            "image": "./src/assets/images/app-icons/icon_3.png"
+          },
+          "icon4": {
+            "image": "./src/assets/images/app-icons/icon_4.png"
+          },
+          "icon5": {
+            "image": "./src/assets/images/app-icons/icon_5.png"
+          }
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "aitv-lms",
+          "organization": "aitv-lms"
+        }
+      ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2c910706-e10c-4421-869b-cf5d19fcd9f8"
+      }
+    }
   }
 }

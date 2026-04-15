@@ -29,7 +29,7 @@ const mmkvStorage: StateStorage = {
 
 export const useAuthStore = create<AuthStore>()(
   persist(
-    (set) => ({
+    (set): AuthStore => ({
       user: null,
       isAuthenticated: false,
       isHydrated: false,

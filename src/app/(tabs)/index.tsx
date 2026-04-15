@@ -1,28 +1,40 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, {
+  useState,
+  useCallback,
+  useRef,
+  useMemo,
+  useEffect,
+} from "react";
 import {
   View,
   Text,
   ScrollView,
   RefreshControl,
   Pressable,
+  Alert,
   useColorScheme,
   useWindowDimensions,
   TextInput,
+  Button,
+  TouchableOpacity,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { coursesApi } from "@/services/api/courses";
 import { FlashList } from "@shopify/flash-list";
 import { CourseCardSkeleton } from "@/components/course/CourseCardSkeleton";
 import { Course } from "@/types/course";
-import { Search, X, BookOpen, Zap } from "lucide-react-native";
+import { Search, X, BookOpen, Zap, Gauge } from "lucide-react-native";
 import { useCourseStore } from "@/store/courseStore";
 import { router } from "expo-router";
-import { Image } from "expo-image";
 import { useDebounce } from "@/hooks/useDebounce";
 import { CourseFeedCard } from "@/components/course/CourseFeedCard";
 import { Avatar } from "@/components/ui/Avatar";
 import { useAuthStore } from "@/store/authStore";
+import * as Sentry from "@sentry/react-native";
 
 const CATEGORIES = [
   "All",
@@ -32,6 +44,9 @@ const CATEGORIES = [
   "Business",
   "Soft Skills",
 ];
+
+const SKELETON_ITEM: Course = { id: "skeleton" } as Course;
+const STATS_ITEM = { id: "__stats__" } as Course & { id: string };
 
 export default function DiscoverScreen() {
   const [activeCategory, setActiveCategory] = useState("All");
@@ -46,6 +61,10 @@ export default function DiscoverScreen() {
     useAuthStore();
   const avatarUrl = getAvatarUrl();
   const displayName = getDisplayName();
+
+  // useEffect(() => {
+  //   Sentry.nativeCrash();
+  // }, []);
 
   const {
     enrollments,
@@ -67,17 +86,20 @@ export default function DiscoverScreen() {
 
   const courses = coursesData?.courses ?? [];
 
-  const resumeCourse = React.useMemo(() => {
-    if (!courses.length || !enrollments.length) return null;
+  // Combines resumeCourse + derived progress/lesson values in one pass
+  const [resumeCourse, resumeProgress, resumeLessons] = useMemo(() => {
+    if (!courses.length || !enrollments.length) return [null, 84, 12] as const;
     const enrolled = courses.filter((c: Course) => enrollments.includes(c.id));
-    if (!enrolled.length) return null;
-    return enrolled.reduce((best: Course, c: Course) =>
+    if (!enrolled.length) return [null, 84, 12] as const;
+    const course = enrolled.reduce((best: Course, c: Course) =>
       (progressMap[c.id] ?? 0) >= (progressMap[best.id] ?? 0) ? c : best,
     );
+    const progress = progressMap[course.id] ?? 0;
+    return [course, progress, Math.floor((progress / 100) * 15)] as const;
   }, [courses, enrollments, progressMap]);
 
-  const filteredCourses = React.useMemo(() => {
-    if (isLoading) return Array(4).fill({ id: "skeleton" } as Course);
+  const filteredCourses = useMemo(() => {
+    if (isLoading) return Array(4).fill(SKELETON_ITEM);
     let result = courses.map((c: Course) => ({
       ...c,
       isBookmarked: bookmarks.includes(c.id),
@@ -94,11 +116,11 @@ export default function DiscoverScreen() {
     return result;
   }, [courses, isLoading, searchQuery, bookmarks, enrollments]);
 
-  const listData = React.useMemo(() => {
+  const listData = useMemo(() => {
     if (filteredCourses.length < 3 || searchQuery.trim())
       return filteredCourses;
     const copy = [...filteredCourses];
-    copy.splice(3, 0, { id: "__stats__" } as any);
+    copy.splice(3, 0, STATS_ITEM);
     return copy;
   }, [filteredCourses, searchQuery]);
 
@@ -110,89 +132,80 @@ export default function DiscoverScreen() {
     await refetch();
   }, [refetch]);
 
-  const resumeProgress = resumeCourse
-    ? (progressMap[resumeCourse.id] ?? 0)
-    : 84;
-  const resumeLessons = resumeCourse
-    ? Math.floor((resumeProgress / 100) * 15)
-    : 12;
+  const clearSearch = useCallback(() => {
+    setSearchTerm("");
+    inputRef.current?.blur();
+  }, []);
 
-  const renderItem = ({ item }: { item: Course & { id: string } }) => {
-    if (item.id === "skeleton") {
-      return (
-        <View className="px-5 mb-5">
-          <CourseCardSkeleton />
-        </View>
-      );
-    }
+  const renderItem = useCallback(
+    ({ item }: { item: Course & { id: string } }) => {
+      if (item.id === "skeleton") {
+        return (
+          <View className="px-5 mb-5">
+            <CourseCardSkeleton />
+          </View>
+        );
+      }
 
-    if (item.id === "__stats__") {
-      return (
-        <View className="px-5 mb-5">
-          <View
-            className="bg-[#eef2ff] dark:bg-[#1e1b4b]/60 p-6 rounded-[20px]"
-            style={{ minHeight: 180 }}
-          >
-            <Text className="text-lg font-bold text-[#3525cd] dark:text-[#c3c0ff] mb-1">
-              Weekly Goal
-            </Text>
-            <Text className="text-sm text-[#515f74] dark:text-[#9ca3af] leading-relaxed mb-6">
-              You are 2 hours away from your weekly target. Keep the momentum!
-            </Text>
-            <View className="flex-row gap-3">
-              <View
-                className="flex-1 bg-white dark:bg-[#1c2125] p-4 rounded-[14px]"
-                style={{
-                  shadowColor: "#000",
-                  shadowOpacity: 0.04,
-                  shadowRadius: 8,
-                  elevation: 2,
-                }}
-              >
-                <Text className="text-[10px] font-black text-[#9ca3af] uppercase tracking-widest mb-1">
-                  Streak
-                </Text>
-                <Text className="text-2xl font-black text-[#4f46e5]">
-                  {streakDays}
-                </Text>
-                <Text className="text-xs text-[#515f74] dark:text-[#9ca3af] font-medium">
-                  Days
-                </Text>
-              </View>
-              <View
-                className="flex-1 bg-white dark:bg-[#1c2125] p-4 rounded-[14px]"
-                style={{
-                  shadowColor: "#000",
-                  shadowOpacity: 0.04,
-                  shadowRadius: 8,
-                  elevation: 2,
-                }}
-              >
-                <Text className="text-[10px] font-black text-[#9ca3af] uppercase tracking-widest mb-1">
-                  Points
-                </Text>
-                <Text className="text-2xl font-black text-[#4f46e5]">
-                  {points.toLocaleString()}
-                </Text>
-                <Text className="text-xs text-[#515f74] dark:text-[#9ca3af] font-medium">
-                  XP
-                </Text>
+      if (item.id === "__stats__") {
+        return (
+          <View className="px-5 mb-5">
+            <View
+              className="bg-[#eef2ff] dark:bg-[#1e1b4b]/60 p-6 rounded-[20px]"
+              style={{ minHeight: 180 }}
+            >
+              <Text className="text-lg font-bold text-[#3525cd] dark:text-[#c3c0ff] mb-1">
+                Weekly Goal
+              </Text>
+              <Text className="text-sm text-[#515f74] dark:text-[#9ca3af] leading-relaxed mb-6">
+                You are 2 hours away from your weekly target. Keep the momentum!
+              </Text>
+              <View className="flex-row gap-3">
+                {[
+                  { label: "Streak", value: streakDays, unit: "Days" },
+                  {
+                    label: "Points",
+                    value: points.toLocaleString(),
+                    unit: "XP",
+                  },
+                ].map(({ label, value, unit }) => (
+                  <View
+                    key={label}
+                    className="flex-1 bg-white dark:bg-[#1c2125] p-4 rounded-[14px]"
+                    style={{
+                      shadowColor: "#000",
+                      shadowOpacity: 0.04,
+                      shadowRadius: 8,
+                      elevation: 2,
+                    }}
+                  >
+                    <Text className="text-[10px] font-black text-[#9ca3af] uppercase tracking-widest mb-1">
+                      {label}
+                    </Text>
+                    <Text className="text-2xl font-black text-[#4f46e5]">
+                      {value}
+                    </Text>
+                    <Text className="text-xs text-[#515f74] dark:text-[#9ca3af] font-medium">
+                      {unit}
+                    </Text>
+                  </View>
+                ))}
               </View>
             </View>
           </View>
+        );
+      }
+
+      return (
+        <View className="px-5 mb-5">
+          <CourseFeedCard course={item} onBookmarkToggle={toggleBookmark} />
         </View>
       );
-    }
+    },
+    [toggleBookmark, streakDays, points],
+  );
 
-    return (
-      <View className="px-5 mb-5">
-        <CourseFeedCard course={item} onBookmarkToggle={toggleBookmark} />
-      </View>
-    );
-  };
-
-  // Only the scrollable content lives inside ListHeaderComponent — NO TextInput here
-  const ListHeader = React.useMemo(
+  const ListHeader = useMemo(
     () => (
       <View>
         {/* Hero card */}
@@ -206,7 +219,10 @@ export default function DiscoverScreen() {
                     router.push(`/course/${courses[0]?.id}`)
               }
               className="rounded-[24px] p-7 overflow-hidden"
-              style={{ backgroundColor: "#3525cd", ...(isLandscape ? { minHeight: 160 } : {}) }}
+              style={{
+                backgroundColor: "#3525cd",
+                ...(isLandscape ? { minHeight: 160 } : {}),
+              }}
             >
               <View
                 className="absolute rounded-full"
@@ -322,8 +338,8 @@ export default function DiscoverScreen() {
           </View>
         ) : null}
       </View>
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       searchTerm,
       activeCategory,
@@ -338,18 +354,46 @@ export default function DiscoverScreen() {
   return (
     <View className="flex-1 bg-[#f7f9fb] dark:bg-[#0b0f10]">
       <SafeAreaView edges={["top", "left", "right"]} className="flex-1">
-        {/* ── STABLE HEADER: Top bar + Search (never inside FlashList) ── */}
-        <View style={{ paddingHorizontal: Math.max(20, insets.left + 12), paddingTop: 16, paddingBottom: 12 }}>
-          {/* Top app bar */}
+        {/* ── STABLE HEADER (never inside FlashList) ── */}
+        <View
+          style={{
+            paddingHorizontal: Math.max(20, insets.left + 12),
+            paddingTop: 16,
+            paddingBottom: 12,
+          }}
+        >
           <View className="flex-row items-center justify-between mb-4">
             <Text className="text-2xl font-black tracking-tighter text-[#3525cd]">
               AITV LMS
             </Text>
+            <View className="flex-row items-center gap-3">
+              <Pressable
+                onPress={() =>
+                  Alert.alert(
+                    "List Benchmark",
+                    "Choose a list renderer to stress-test with 4 200 heavy items.",
+                    [
+                      {
+                        text: "FlashList",
+                        onPress: () => router.push("/perf-test/flashlist"),
+                      },
+                      {
+                        text: "LegendList",
+                        onPress: () => router.push("/perf-test/legendlist"),
+                      },
+                      { text: "Cancel", style: "cancel" },
+                    ],
+                  )
+                }
+                className="w-10 h-10 rounded-xl bg-[#f2f4f6] dark:bg-[#1c2125] items-center justify-center"
+              >
+                <Gauge size={20} color={dark ? "#9ca3af" : "#515f74"} />
+              </Pressable>
               <Pressable onPress={() => router.push("/(tabs)/profile")}>
                 <Avatar uri={avatarUrl} name={displayName} size={40} />
               </Pressable>
+            </View>
           </View>
-
           {/* Search bar — lives here permanently, never remounted */}
           <View
             className="flex-row items-center bg-white dark:bg-[#1c2125] rounded-[18px] px-4 h-12 border border-[#eceef0] dark:border-[#2d3133]"
@@ -377,13 +421,7 @@ export default function DiscoverScreen() {
               clearButtonMode="never"
             />
             {searchTerm.length > 0 && (
-              <Pressable
-                onPress={() => {
-                  setSearchTerm("");
-                  inputRef?.current?.blur();
-                }}
-                hitSlop={10}
-              >
+              <Pressable onPress={clearSearch} hitSlop={10}>
                 <View className="w-5 h-5 rounded-full bg-[#eceef0] dark:bg-[#2d3133] items-center justify-center">
                   <X size={11} color={dark ? "#9ca3af" : "#515f74"} />
                 </View>
@@ -392,9 +430,8 @@ export default function DiscoverScreen() {
           </View>
         </View>
 
-        {/* ── LIST ── */}
         <FlashList
-          key={isLandscape ? 'landscape' : 'portrait'}
+          key={isLandscape ? "landscape" : "portrait"}
           data={listData}
           keyExtractor={(item: any) => item.id}
           renderItem={renderItem}
